@@ -1,0 +1,133 @@
+
+
+
+   chage -l 用户名  查看用户时间
+
+   chage -d 0 bob    //强制新添加的用户修改初始密码 
+
+   chage -E 年/月/日  用户名    //修改用户失效时间
+
+   passwd -S 用户        //查看用户密码状态
+
+     
+ RHEL6 不能用systemctl管理服务
+ 使用chkconfig 
+    chkconfig httpd on = systemctl enable httpd
+    chkconfig httpd off = systemctl disable httpd
+
+启服务  
+    service httpd start = systemctl start httpd
+            start|stop|restart
+
+给文件 加保护  不可更改文件内容chattr  /lsattr   //root用户也受限
+控制方式    +  -  =
+     i  不可改变
+     a  仅可追加
+
+chattr +a /文件  添加权限   #仅可追加 不可删除.修改
+chattr -a /文件  减去权限
+lsattr 查看权限
+chattr +i /文件   文件不能移动/编辑/删除
+chattr -i /文件   取消权限
+
+
+]# lsattr net_status.sh 
+------------- net_status.sh    //无特殊权限限制
+ 
+
+
+
+su -  -c '命令'  root (指定用户)
+su [-]   //不加[-]  系统环境不变 只改变用户名字
+
+
+用户提权
+]# cat /var/log/secure    //日志 提权记录 提权后做的命令 
+
+
+sudo提权
+
+sudo + 提权命令 
+sudo -l 查看自身被提权限
+
+vim /etc/sudoers
+
+用户  主机名 = 切换成root/什么身份    所有命令
+%用户   >> 用户组
+
+
+]# vim /etc/sudoers
+
+
+root    ALL=(ALL)       ALL
+
+User_Alias MYUSER=yaya,dc
+Host_Alias MYSER=localhost,zabbixserver,my25
+Cmnd_Alias MYCMD=/usr/bin/yum,/usr/bin/rpm,/usr/bin/systemctl * mariadb,/usr/bin/vim /etc/my.cnf
+
+MYUSER MYSER=MYCMD
+
+mike MYSER=MYCMD,/sbin/* , !/sbin/ifconfig eth0
+
+Defaults logfile="/var/log/sudu.log"
+
+  ////权限
+
+
+
+ssh 安全 防护
+
+]# vim /etc/ssh/sshd_config
+port   //修改端口号
+
+]$ ssh -X -p 2222 root@192.168.2.5
+   -p 指端口
+
+
+UseDNS no  //不解析客户端地址
+
+loginGraceTime 1m  //登录时限 最多认证次数超过后 等待时间才可继续访问
+MaxAuthTries 3   //每次连接最多认证次数
+
+
+黑白名单     //黑白名单只能存在一个
+
+ DenyUsers USER1 USER2
+ AllowUsers USER1@HOST   //定义用户 ip 访问 
+
+allow >> 只能使用白名单中用户连接 ssh
+
+deny >> 只不允许使用黑名单中用户连接ssh
+
+AllowUsers root@192.168.2.254  yaya
+                                             //空格间隔
+
+
+生产环境 只使用密钥对
+
+客户端   生成>>秘钥+ 公钥
+            发送公钥 给 服务器 
+             连接时   客户端发送连接请求 
+        >> 服务器 返回公钥加密的文件 
+      >> 客户端解密 加密文件 连接 服务器
+
+
+
+客户端 ]# ssh-keygen   生成密钥对
+客户端 ]# ssh-copy-id tom@192.168.2.5    //传输公钥 给指定ip
+
+此时 服务器上其他用户一样能被连接 (没有秘钥的用户)
+
+修改 服务器上  ]# vim /etc/ssh/sshd_config
+
+PasswordAuthentication no   //65行 关闭密码验证登录
+
+                私钥   id_rsa    公钥 id_rsa.pub
+
+   sshd -t  查看ssh服务错误
+  ssh-keygen -f " ~/.ssh/known_hosts" -R xx.xx.xxx.xxx
+                                       xxxx 为目标地址 ip
+如果遇到 N上1 连接不对   尝试 使用上面 方法 
+Permission denied (publickey,gssapi-keyex,gssapi-with-mic).
+
+

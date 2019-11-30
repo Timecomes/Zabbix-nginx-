@@ -1,0 +1,321 @@
+    
+ 
+                               打补丁
+
+
+存放 差异文件 
+源 >> 新 
+之间的差异文件 就是补丁文件的内容
+
+
+]# diff -u test1.sh test2.sh    对比文件
+--- test1.sh	2019-11-02 09:51:24.274875861 +0800
++++ test2.sh	2019-11-02 09:51:58.668074003 +0800
+@@ -1,2 +1,3 @@
+ #!/bin/bash
+ echo "hello !"
++echo "test not need"
+
+]# diff -u test1.sh test2.sh  > x.patch   做成补丁文件
+
+文件之间对比
+
+文件目录之间对比
+
+系统二进制文件对比
+
+
+---
+  -u 输出内容头部信息
+  -r 递归 对目录中资源和目录做比较
+  -a 所有文件视为文本文件 包括二进制
+  -N 无文件 视为空   空文件怎么变成第二个文件  /文件不存在 创建 一个空文件
+
+
+]# diff -u /demo/source1/ /demo/source2/
+Binary files /demo/source1/find and /demo/source2/find differ
+diff -u /demo/source1/test1.sh /demo/source2/test1.sh
+--- /demo/source1/test1.sh	2019-11-02 10:22:29.783754264 +0800
++++ /demo/source2/test1.sh	2019-11-02 10:22:48.487874562 +0800
+@@ -1 +1 @@
+-helllo word
++helllo the word
+只在 /demo/source2/ 存在：tmp.txt
+
+[root@room9pc01 demo]# diff -ur /demo/source1 /demo/source2
+Binary files /demo/source1/find and /demo/source2/find differ
+diff -ur /demo/source1/test1.sh /demo/source2/test1.sh
+--- /demo/source1/test1.sh	2019-11-02 10:22:29.783754264 +0800
++++ /demo/source2/test1.sh	2019-11-02 10:22:48.487874562 +0800
+@@ -1 +1 @@
+-helllo word
++helllo the word
+只在 /demo/source2 存在：tmp.txt
+
+
+[root@room9pc01 demo]# diff -ura /demo/source1 /demo/source2
+diff -ura /demo/source1/find /demo/source2/find
+--- /demo/source1/find	2019-11-02 10:25:58.238094978 +0800
++++ /demo/source2/find	2019-11-02 10:26:42.615380399 +0800
+@@ -630,4 +630,4 @@
+diff -ura /demo/source1/test1.sh /demo/source2/test1.sh
+--- /demo/source1/test1.sh	2019-11-02 10:22:29.783754264 +0800
++++ /demo/source2/test1.sh	2019-11-02 10:22:48.487874562 +0800
+@@ -1 +1 @@
+-helllo word
++helllo the word
+只在 /demo/source2 存在：tmp.txt
+
+
+
+]# diff -uraN /demo/source1 /demo/source2
+
+1���b��b����b��� ��b��� �������
+diff -uraN /demo/source1/test1.sh /demo/source2/test1.sh
+--- /demo/source1/test1.sh	2019-11-02 10:22:29.783754264 +0800
++++ /demo/source2/test1.sh	2019-11-02 10:22:48.487874562 +0800
+@@ -1 +1 @@
+-helllo word
++helllo the word
+diff -uraN /demo/source1/tmp.txt /demo/source2/tmp.txt
+--- /demo/source1/tmp.txt	1970-01-01 08:00:00.000000000 +0800
++++ /demo/source2/tmp.txt	2019-11-02 10:24:37.231573968 +0800
+@@ -0,0 +1 @@   //创建一个文件
++test
+
+
+]# diff -uraN /demo/source1 /demo/source2 > /tmp/y.patch
+      生成补丁文件
+
+
+                          打补丁    一定要进入的文件的所在路径范围中 
+patch                                   //找不到
+
+     -p数字 (删除多少路径前缀 0 不删除 1 删除重复的1个)  > 文件
+                     删除绝对路径 的前缀路径重复个数  输入命令时 重复的路径
+ # pwd /root/  =======    /demo/source1/ 相同路径为 '/'
+        -p1 删除一层重复路径
+     主要还是看 补丁文件中的路径 
+
+      -RE < 文件  撤回补丁  一定要在修改文件的目录上
+
+    patch -p数字 < 补丁文件
+    patch -RE  < 补丁文件  要放到文件目录下
+
+
+
+-------------------------------------------------------
+
+   防火墙 
+                iptables rhel6
+
+
+]# yum list | grep -i iptables
+]# yum -y install iptables-services.x86_64 
+
+
+iptables  4个表 5个链
+
+表 : 功能分类
+      包过滤        filter
+      地址转换     nat
+      打标记        mangle
+      状态追踪     raw
+
+链 : 数据包传输的方向
+     进入防火墙主机的数据包     INPUT
+    从防火墙主机出去的数据包   OUTPUT
+    经过防火墙主机的数据包      FORWARD
+    处理路由前的数据包            PREROUTING
+    处理路由后的数据包            POSTROUTING
+
+]# iptables -t 表名 选项 链名 条件 -j 处理动作
+                                                 规则        
+
+
+]# iptables -t filter -I INPUT -p icmp -j REJECT
+                           //icmp 接口     //回复到打不了
+
+
+
+]# iptables -t filter -L INPUT   查看 INPUT链的规则
+]# iptables -t filter -L INPUT --line-numbers
+]# iptables -t filter -nL INPUT --line-numbers
+                      -n 用数字表示ip  | 显示行号
+               n只能加在L 前面
+
+]# iptables -t filter -D INPUT 1  
+                                      删除filter表中 INPUT链中 第一个规则
+
+
+    -t 不指定表名  默认 filter 表
+         -I 不指定链 名  默认表中所有链
+
+    -j 后 规则
+             ACCEPT  允许任何
+             REJECT  不允许 做出回应 回应告诉你不可达
+             DROP    不允许 不做回应 丢弃
+             LOG     记录日志 然后传给下一跳规则 
+
+如果没有匹配规则    使用默认策略
+
+
+PREROUTING    路由选路前
+POSTROUTING  路由选路后
+
+iptables -t filter -F    清除 filter 表中所有规则
+iptables -t nat -F
+iptables -t raw -F
+iptables -t mangle -F
+
+
+iptables -t filter -D INPUT 1 删除filter表中INPUT链中第一个规则
+
+
+~]# iptables -L
+Chain INPUT (policy ACCEPT)
+
+Chain FORWARD (policy ACCEPT)
+
+Chain OUTPUT (policy ACCEPT)
+      
+
+]# iptables -t nat -L
+
+
+主机型防火墙  filter INPUT    
+网络型防火墙  filter FORWARD
+
+修改 防火墙 默认 选项
+修改默认时 注意 先允许主机的远程连接
+
+地址   -s 源地址  (可指定 网段/ip)   -d 目标地址  (都不指定默认全部)
+
+接口   -i 收数据的网卡    -o 发数据的网卡
+
+端口匹配  --sport 源端口  .  --dport 目标端口
+
+协议  -P  
+
+iptables -h
+
+              -A / -I   -A 追加到末尾  || -I 最前方
+
+]# iptables -t filter -A INPUT -p tcp --dport 22 -j ACCEPT
+      添加一条防火墙 规则  只允许类型为tcp  到达的端口22 
+
+]# iptables -t filter -P INPUT DROP
+      修改防火墙默认规则          改为丢弃       除ssh之外 http/mysql
+
+]# iptables -t filter -P INPUT ACCEPT  
+                             改回 默认 允许全部
+
+]# iptables-save > /etc/sysconfig/iptables 
+      获取当前防火墙配置   >   防火墙配置规则 永久有效  开启-启用 
+
+]# iptables -t filter -A INPUT -p tcp --dport 80 -j ACCEPT
+                          允许对80端口的访问请求
+
+]# iptables -t filter -A INPUT -p tcp --dport 3306 -j ACCEPT
+                          允许对3306端口的访问请求
+
+
+
+允许本机ping 其他主机
+禁止其他主机ping本机
+
+1 iptables -A INPUT -p icmp --icmp-type echo-request
+
+echo-request  抓包时可看到 此信息 为 : 请求目的地主机发送 回复
+                                         请求回复
+
+echo-reply  : 收到回复请求 正式回应请求
+tcpdump -i eth0
+
+
+]# iptables -t filter -A INPUT -p icmp --icmp-type echo-reply  -j ACCEPT       
+                      //允许接受 回应请求的数据包
+              //INPUT 进入的数据
+
+
+----------------
+
+网络型
+ 当个  --  中间商 
+ 
+
+开启服务器 路由转发功能 
+     echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
+
+]# sysctl -a | grep -i "net.ipv4.ip_forwrd"
+
+
+
+========================================
+
+route add default gw 192.168.2.10   设置网关
+     给默认 端口设置网关
+route del default gw 192.168.2.10  删除网关
+
+=========================================
+
+
+
+]# iptables -t filter -P FORWARD DROP
+                  //不允许任何数据从该主机经过
+
+                                                                            //端口22
+]# iptables -t filter -A FORWARD -p tcp --dport 22 -j ACCEPT
+]# iptables -t filter -A FORWARD -p tcp --sport 22 -j ACCEPT
+                                                                  //允许发送的请求通过
+                                                                  //允许回复通过
+
+
+]# iptables -t filter -A FORWARD -p tcp --dport 80 -j ACCEPT
+]# iptables -t filter -A FORWARD -p tcp --sport 80 -j ACCEPT
+                                                                   //允许80端口服务通过
+
+
+]# iptables -t filter -A INPUT -p icmp --icmp-type echo-reply  -s 192.168.4.0/24 -j ACCEPT
+                           //-s 指定ip
+
+
+-------------------------------------------------
+
+
+拓展 匹配
+
+-m mac -mac-source mac地址 -j 动作   /禁止或允许 某一mac地址
+
+-m multiport -p tcp --dports 22,80,3306 -j 动作
+              //可允许指定多个端口合并在一起
+
+
+-m 调用模块
+
+-m iprange  --src-range 起始ip-终点ip -j 动作  
+
+
+----------------------------------------
+nat表 应用    ( 源地址转换 目标地址转换  端口转换 ) 
+              SNAT        
+
+iptables -t nat -A POSTROUTING -s 192.168.4.0/24 -p tcp --dport 80 -j SNAT --to-source 192.168.2.10
+                     /源地址转换 地址源 - 转换为
+
+
+iptables -t nat -A POSTROUTING -s 192.168.4.0/24 -o eth1 -j MASQUERADE    //掩码伪装   伪装为 输入的ip
+
+
+
+
+
+
+
+
+
+
+
+
+
+

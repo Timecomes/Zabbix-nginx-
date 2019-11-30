@@ -1,0 +1,466 @@
+]# cp -p  保留权限
+
+
+ ]# uname -r   //查看内核
+
+  
+ ]# sestatus   //selinux 状态  
+
+   /etc/selinux/config
+
+  selinux 
+            disabled  禁用
+       permissive 宽松
+            enforcing  强制
+
+      mls   全局保护 
+    minimum 参半
+   targeted 常用网络服务    机器性能
+
+  touch  /.autorelabel   >>  重新给保护文件 打标签  
+                                     类似于 重新定义 selinux  已保护文件 
+                       并允许之前的修改
+
+
+
+]# sestatus
+SELinux status:                 enabled
+SELinuxfs mount:                /sys/fs/selinux
+SELinux root directory:         /etc/selinux
+Loaded policy name:             targeted    //保护策略常用网络文件
+Current mode:                   enforcing   //工作模式
+Mode from config file:          enforcing
+Policy MLS status:              enabled
+Policy deny_unknown status:     allowed
+Max kernel policy version:      31
+
+
+ setenforce 0
+   permissive
+ setenforce 1
+   enforcing
+
+
+------------------------------------
+  
+             标签  安全上下文  对受保护的文件 
+                                        标签对 允许访问
+                                       标签不对 不允许访问
+
+查看 /修改  安全上下文 ( 标签)  起不启动selinux都在
+  文件  ls -Z 文件
+  目录 ls -ldZ 目录
+  进程 ps aux -Z
+       ps aux -Z | grep httpd
+
+
+
+]# ls -lZ /etc/passwd
+-rw-r--r--. root root system_u:object_r:passwd_file_t:s0 /etc/passwd
+
+system_u:object_r:passwd_file_t:s0
+
+用户: 角色: 访问类型: 选项..
+用户: 角色 >> 固定的
+
+访问类型决定了文件是否能被访问
+文件不同 标签不同  特有标签
+
+不同服务 标签不同 >> 服务进程决定 >> 最高优先级 
+服务标签 规定好了的   服务类型标签 会覆盖 文件标签 打上服务记号
+
+创建新文件或目录时 会自动继承父目录的安全上下文
+移动的文件 安全上下文不变 
+
+
+]# yum -y install vsftpd
+]# ls /var/ftp/
+
+
+修改 安全上下文
+
+ chcon -t 访问类型 需要修改成的访问类型 (安全上下文第三个)   /文件 
+       -R 递归文件
+
+  chcon -t passwd_file_t /etc/passwd
+ 
+  restorecon  恢复为所在位置的默认上下文属性
+    -R 递归修改
+restorecon /etc/*
+              恢复/etc/下所有文件的 安全上下文 
+
+  /.autorelabel 文件直接重新 定义 安全上下文
+   
+如果遇到 访问的文件权限不够 或许是 文件的安全上下文不符合访问规范
+需要修改
+
+selinux 布尔值 (bool)
+    服务的功能开关    ( 可以定义服务的 开关  / 启用 )
+                               
+]# getsebool -a
+
+]# getsebool -a | grep ftp
+ftpd_anon_write --> off
+ftpd_connect_all_unreserved --> off
+ftpd_connect_db --> off
+ftpd_full_access --> off
+ 服务大部分功能 是关闭的  需要手动打开
+
+
+
+修改布尔值 
+ setsebool -P 功能 名称   on/off   启用/关闭
+                                            
+
+vsftpp 中 可以定义 未知用户登录 上传下载文件
+sed -i '29s/^#///' /etc/vsftpd/vsftpd.conf
+但selinex 开启的话 是不允许匿名用户上传文件的
+
+
+]# mkdir /var/ftp/share
+]# chmod o+w /var/ftp/share
+]# sed -i '29s/^#//' /etc/vsftpd/vsftpd.conf 
+]# sed -n '29p' /etc/vsftpd/vsftpd.conf
+anon_upload_enable=YES
+]# systemctl restart vsftpd
+
+
+客户端 
+ftp> lcd /etc  切换到客户端本地目录下
+
+put  passwd   上传 某个文件
+
+上传 不可用  打不开文件   selinux 限定权限 
+
+
+
+服务器 上 修改 selinex 安全上下文   以允许 匿名用户上传文件
+]# vim +29 /etc/vsftpd/vsftpd.conf    可以查看开启上传需要打开的权限
+
+]# setsebool -P ftpd_anon_write on
+]# setsebool -P ftpd_full_access on
+
+]# getsebool -a | grep ftpd
+ftpd_anon_write --> on
+ftpd_connect_all_unreserved --> off
+ftpd_connect_db --> off
+ftpd_full_access --> on
+ftpd_use_cifs --> off
+ftpd_use_fusefs --> off
+ftpd_use_nfs --> off
+ftpd_use_passive_mode --> off
+
+
+客户端 
+]# ftp 192.168.2.100   //连接ftp服务器
+
+ftp> ls             //查看 ftp共享那些文件
+227 Entering Passive Mode (192,168,2,100,99,222).
+150 Here comes the directory listing.
+-rw-r--r--    1 0        0               4 Oct 30 02:41 a.html
+drwxr-xr-x    2 0        0               6 Aug 03  2017 pub
+drwxr-xrwx    2 0        0              46 Oct 30 03:19 share
+
+
+ftp> cd share    //该文件 在服务器上 已存在 
+                              //一定要进入文件中 才能上传文件
+250 Directory successfully changed.
+
+ftp> ls
+227 Entering Passive Mode (192,168,2,100,172,180).
+150 Here comes the directory listing.
+-rw-r--r--    1 0        0               6 Oct 30 03:19 a.txt
+-rw-r--r--    1 0        0          981687 Oct 26 07:45 nginx-1.12.2.tar.gz
+226 Directory send OK.
+ftp> lcd /etc                //移动到 客户机本机的/etc下
+Local directory now /etc
+ftp> put hosts                //上传文件
+local: hosts remote: hosts
+227 Entering Passive Mode (192,168,2,100,40,172).
+150 Ok to send data.
+226 Transfer complete.
+151 bytes sent in 9.6e-05 secs (1572.92 Kbytes/sec)
+
+-----------------------------------------------------------------
+
+
+]# vim +43p /etc/httpd/conf/httpd.conf
+修改 httpd 的端口号
+
+
+]# systemctl restart httpd
+Job for httpd.service failed because the control process exited with error code. See "systemctl status httpd.service" and "journalctl -xe" for details.
+
+
+selinux 运行时 是不允许非默认端口运行的
+
+查看selinux 日志程序 可以查看报错
+
+
+]# rpm -qa | grep -i shoot
+]# yum list | grep -i shoot
+setroubleshoot.x86_64                     3.2.29-3.el7               local_repo 
+setroubleshoot-plugins.noarch             3.0.66-2.1.el7             local_repo 
+setroubleshoot-server.x86_64              3.2.29-3.el7               local_repo 
+
+都是  selinux 日志的软件包
+
+
+]# yum -y install setroubleshoot* ;reboot   重启才能起日志文件
+只记录selinux 的错误
+
+]# systemctl start httpd    //起不起来  selinux 
+Job for httpd.service failed because the control process exited with error code. See "systemctl status httpd.service" and "journalctl -xe" for details.
+
+~]# ls /var/log/messages 
+
+
+
+~]#  grep setroubleshoot /var/log/messages | tail -1
+Oct 30 11:57:44 my2100 setroubleshoot: SELinux is preventing /usr/sbin/httpd from name_bind access on the tcp_socket port 8070. For complete SELinux messages run: sealert -l d966202f-417c-40ab-9329-f9b41726ad64
+
+
+具体日志信息:
+SELinux is preventing /usr/sbin/httpd from name_bind access on the tcp_socket port 8070. For complete SELinux messages run: sealert -l d966202f-417c-40ab-9329-f9b41726ad64
+
+
+For complete SELinux messages run:
+具体消息 运行 一下程序:
+
+
+]# sealert -l d966202f-417c-40ab-9329-f9b41726ad64
+
+
+*****  插件 bind_ports (92.2 置信度) 建议  ******************************************
+
+If you want to allow /usr/sbin/httpd to bind to network port 8070
+Then you need to modify the port type.
+Do
+# semanage port -a -t PORT_TYPE -p tcp 8070
+    其中 PORT_TYPE 是以下之一：http_cache_port_t, http_port_t, jboss_management_port_t, jboss_messaging_port_t, ntop_port_t, puppet_port_t。
+
+//以上是输出的 错误日志内容
+
+]# semanage port -a -t http_port_t -p tcp 8070
+
+]# systemctl start httpd
+]# ss -tunlp | grep 8070
+tcp    LISTEN     0      128       *:8070     
+
+
+
+
+
+---------------------------------------------------------------------------------------------------
+    sha1sum                  //类型 + 查看 
+    md5sum anaconda-ks.cfg   //生成文件的加密文本 
+
+]$ which gpg
+/usr/bin/gpg
+]$ rpm -qf /usr/bin/gpg   //查看生成命令 的 安装包
+
+-------------------------------
+
+                              加密/解密工具
+
+gpg -c   对称加密 
+    -d   解密
+-------------------------------
+gpg 非对称加密/解密
+
+解密方  : 生成 秘钥对 >> 公钥+ 私钥
+将公钥 发送给 加密方
+加密方 : 使用 公钥 加密明文文件 
+加密后文件 再传给 解密方  
+
+
+解密方  生成 秘钥对
+]$  gpg --gen-key
+gpg (GnuPG) 2.0.22; Copyright (C) 2013 Free Software Foundation, Inc.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+请选择您要使用的密钥种类：
+   (1) RSA and RSA (default)
+   (2) DSA and Elgamal
+   (3) DSA (仅用于签名)
+   (4) RSA (仅用于签名)
+-您的选择？ 
+RSA 密钥长度应在 1024 位与 4096 位之间。
+-您想要用多大的密钥尺寸？(2048)
+您所要求的密钥尺寸是 2048 位
+请设定这把密钥的有效期限。
+         0 = 密钥永不过期
+      <n>  = 密钥在 n 天后过期
+      <n>w = 密钥在 n 周后过期
+      <n>m = 密钥在 n 月后过期
+      <n>y = 密钥在 n 年后过期
+-密钥的有效期限是？(0) 
+密钥永远不会过期
+-以上正确吗？(y/n)y
+
+You need a user ID to identify your key; the software constructs the user ID
+from the Real Name, Comment and Email Address in this form:
+    "Heinrich Heine (Der Dichter) <heinrichh@duesseldorf.de>"
+
+-真实姓名：userb
+-电子邮件地址：userb@tedu.cn
+-注释：student
+您选定了这个用户标识：
+    “userb (student) <userb@tedu.cn>”
+
+更改姓名(N)、注释(C)、电子邮件地址(E)或确定(O)/退出(Q)？O
+您需要一个密码来保护您的私钥。
+
+
+
+]$ ls ~/.gnupg/    //无论成功与否都会生成此文件 错误时需要删除
+gpg.conf           pubring.gpg   random_seed  S.gpg-agent
+private-keys-v1.d  pubring.gpg~  secring.gpg  trustdb.gpg
+
+
+pubring.gpg  公钥   两个 有个备份文件
+secring.gpg  私钥
+
+
+b]$ gpg --export -a               导出公钥内容 
+
+b]$ gpg --export -a > userb.pup   导出内容重新定义到文件中
+
+b]$ mv userb.pup /tmp/
+
+
+a]$ gpg --import /tmp/userb.pup          导入公钥
+a]$ ls ~/.gnupg/            导入后 公钥 存放位置
+                                                   导入位置固定
+
+]$ gpg -e -r userb t1.txt   //非对称加密指定文件
+//userb 为b用户创建密钥对时真实姓名填写的
+
+~]$ ls
+t1.txt  t1.txt.gpg
+
+b]$ gpg -d /tmp/t1.txt.gpg    //解密主机解密加密文件
+                                                     第一次密码正确 后续就无需密码验证
+
+
+
+
+----------------------------------------
+      数字签名  验证数据完整性
+
+私钥签名  公钥 验证签名
+
+gpg -b 生成 数字签名文件       服务器  带有私钥的一方 生成数字签名文件
+
+gpg --import /tmp/userb.pup   接收方导入公钥 
+gpg --verify /tmp/t2.txt.sig  验证签名文件
+
+
+
+
+]$ gpg --verify /tmp/t2.txt.sig   验证签名文件
+gpg: 于 2019年10月30日 星期三 16时33分23秒 CST 创建的签名，使用 RSA，钥匙号 CCC45200
+gpg: 已损坏的签名，来自于“userb (student) <userb@tedu.cn>”
+   //当文件t2.txt 文件内容被修改时  t2.txt.sig 签名文件 损坏
+   //想要恢复签名文件   恢复修改内容就可以
+
+
+]$ gpg --verify /tmp/t2.txt.sig 
+gpg: 于 2019年10月30日 星期三 16时33分23秒 CST 创建的签名，使用 RSA，钥匙号 CCC45200
+gpg: 完好的签名，来自于“userb (student) <userb@tedu.cn>”
+gpg: 警告：这把密钥未经受信任的签名认证！
+gpg:       没有证据表明这个签名属于它所声称的持有者。
+主钥指纹： 962C 38F1 0B4D A887 C91C  7255 7E11 18B0 CCC4 5200
+
+
+
+------------------------------------------------------------------------------------------------------
+
+
+[root@]# useradd userG
+[root@]# echo 123456 | passwd --stdin userG
+[root@]# su - userG
+[userG ]$ gpg --import /tmp/userb.pup  #导入公共秘钥
+gpg: 已创建目录‘/home/userG/.gnupg’
+gpg: 新的配置文件‘/home/userG/.gnupg/gpg.conf’已建立
+gpg: 警告：在‘/home/userG/.gnupg/gpg.conf’里的选项于此次运行期间未被使用
+gpg: 钥匙环‘/home/userG/.gnupg/secring.gpg’已建立
+gpg: 钥匙环‘/home/userG/.gnupg/pubring.gpg’已建立
+gpg: /home/userG/.gnupg/trustdb.gpg：建立了信任度数据库
+gpg: 密钥 CCC45200：公钥“userb (student) <userb@tedu.cn>”已导入
+gpg: 合计被处理的数量：1
+gpg:           已导入：1  (RSA: 1)
+
+[userG@room9pc01 ~]$ gpg --verify /tmp/t2.txt.sig #使用秘钥验证 
+gpg: 于 2019年10月30日 星期三 16时33分23秒 CST 创建的签名，使用 RSA，钥匙号 CCC45200
+gpg: 完好的签名，来自于“userb (student) <userb@tedu.cn>”
+gpg: 警告：这把密钥未经受信任的签名认证！
+gpg:       没有证据表明这个签名属于它所声称的持有者。
+主钥指纹： 962C 38F1 0B4D A887 C91C  7255 7E11 18B0 CCC4 5200
+
+-----------------------------------------
+
+AIDE 入侵检查
+
+yum -y install aide 
+
+vim /etc/aide.conf
+
+@@define DBDIR /var/lib/aide     检测信息文件目录
+@@define LOGDIR /var/log/aide    日志文件存放位置
+
+database=file:@@{DBDIR}/aide.db.gz   检测信息
+
+
+
+/boot/   CONTENT_EX     对那些文件进行检测  //    检测规则
+/bin/    CONTENT_EX
+/sbin/   CONTENT_EX
+/lib/    CONTENT_EX
+/lib64/  CONTENT_EX
+/opt/    CONTENT
+
+
+!/usr/src/         不做检测
+!/usr/tmp/
+
+!/etc/.*~      不检测 所有隐藏文件的备份文件
+
+初始检测   文件过大    注释掉文件
+]# sed -i '99,312s/^/#/' /etc/aide.conf
+
+]# mv /var/lib/aide/aide.db.new.gz  /opt/
+]# cp /opt/aide.db.new.gz /var/lib/aide/aide.db.gz
+     对比 (检测) 文件时 用的是过去的数据   对比现在的数据
+    过去数据 改名 >> 由于系统文件指定 名字 aide.db.gz
+]# aide --check     查看要检测的更改过的信息
+
+
+
+
+
+                   抓包  扫描
+
+
+nmap -sP 176.209.101.1-254
+扫描网段
+  默认扫描tcp服务的端口  扫秒的端口 只扫默认的 修改过的端口要指定
+
+
+
+
+]$ nmap -p 8070 192.168.2.100
+]$ nmap -p 8070,22,21 192.168.2.100    多端口查看
+
+]$ nmap 176.209.101.7 扫描ip 开放的 默认 tcp端口
+
+]$ nmap -A 192.168.2.100  全面分析
+
+-sS 半开式扫描 三次握手只做一次连接  接收第一次服务器传输的确认包
+  过多次半开访问 会造成 服务器负担加重
+
+-sT 全开扫描
+-n 不做主机名解析  加快速度
+
+

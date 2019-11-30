@@ -1,0 +1,358 @@
+         setip    可指定网卡 修改ip 网关
+
+  nmap -p  端口号   ip
+   nmap -A  
+
+   -------------------
+ 
+           抓包
+                           which tcpdump
+]$ rpm -qf /usr/sbin/tcpdump
+tcpdump-4.9.2-3.el7.x86_64   安装包
+           
+tcpdump -c  指定抓包个数           默认 抓第一块网卡的包
+tcpdump -i  网卡名   //指定抓包网卡
+
+tcpdump -c 2 -w ./ssh.cap    将抓包信息放入文件
+tcpdump -r ./ssh.cap     //查看抓包文件
+
+tcpdump -c 2 -A -w ./ssh2.cap    //cap是文件保存格式
+               -A  抓包内容更丰富
+
+
+ 
+09:42:36.190774 IP my2100.ssh > 192.168.2.254.57604: Flags [P.]
+                                    //被访问地址   // 数据传输给谁
+
+
+      过滤条件
+
+
+ 类型     .host .net .port .portrange
+ 方向     src   来自哪        dst 到哪去
+ 协议     tpc .udp .ip .wlan .arp .icmp ....
+多条件组合
+           and . or . not(取反)
+
+tcpdump -i 网卡  过滤条件
+tcpdump -i eth0 icmp (ping 协议)
+
+09:54:28.710850 IP my2100 > 192.168.2.203: ICMP echo reply, id 1056, seq 45, length 64
+09:54:28.738521 IP 192.168.2.254 > my2100: ICMP echo request, id 9865, seq 58, length 64
+
+收包  >>  回包
+
+tcpdump -i eth0 host 192.168.4.203 
+                                //指定 只抓某一ip 的包
+
+
+tcpdump -i eth0 icmp and host 192.168.4.100
+                         只抓某一ip  icmp协议
+
+tcpdump -i eth0 port 22 
+tcpdump -i eth0 port 22 and host 192.168.2.100
+
+tcpdump -i eth0 portrange 21-22 and host 192.168.2.100
+
+]# tcpdump -A -i eth1 tcp port 21 
+                              抓ftp 详细数据包  可查看到 用户密码 PASS
+
+
+]# tcpdump -A -i eth1 tcp port 21 -w /root/ftp.cap
+
+]# tcpdump -r /root/ftp.cap | grep -i user   // -i 忽略大小写
+]# tcpdump -r /root/ftp.cap | grep -i pass
+
+
+
+wireshark  软件 查看抓包 的信息
+                              查看 抓包信息
+
+]# yum -y install wireshark-gnome.x86_64 wireshark
+]# wireshark   打开
+
+
+抓包 
+
+载体 自身  
+    由自身的接受数据 与传输数据 抓包 来查看 所谓的 抓包数据
+
+
+file
+    poen  
+              文件 (抓包 保存的 文件)
+
+                      最左边是 不保存 继续
+                中间  四层协议 所有数据  只看最重要的 地方
+
+
+
+
+
+               审计
+
+事先配置规则  生成日志
+                            不提供安全保护
+                    记录违反安全策略的人 及行为
+ 
+
+   记录内容
+ 日期  事件  事件结果
+ 触发事件的所有用户
+ 对所有认证机制做记录  
+ 对关键数据的 修改等
+
+. 监控文件访问   修改文件等
+. 监控系统调用  用户名不存在,密码错误等  ..系统 调用 用户验证
+. 记录用户的运行命令
+. 监控网络访问行为
+ausearch 过滤审计日志
+aureport 生成审计报告
+
+
+默认系统停不掉
+
+]# yum -y install audit
+]# systemctl start auditd.service
+]# cat /etc/audit/auditd.conf     //主配置文件
+
+
+定义审计规则
+    命令行 + 配置文件 /etc/audit/rules.d/audit.rules
+                                ##重启后生效  放末尾就行
+
+auditctl -s  //查状态
+auditctl -l    //查看规则个数
+auditctl -w     //写规则
+
+auditctl -w path( [路径]文件/目录/命令)  
+            -p (权限)[r,w,x,a(属性[权限]变化)]
+                -k 给规则起名  规则统一放在一个文件中         
+
+
+
+
+[root@my203 ~]# auditctl -s
+enabled 1       //audit状态
+failure 1
+pid 23378
+rate_limit 0
+backlog_limit 8192
+lost 0
+backlog 0
+loginuid_immutable 0 unlocked
+
+
+]# auditctl -w /etc/passwd -p wa -k dc_passwd
+]# auditctl -w /etc/selinux -p wa -k dc_se
+]# auditctl -w /usr/sbin/fdisk -p x -k dc_fdisk
+]# auditctl -l
+-w /etc/passwd -p wa -k dc_passwd
+-w /etc/selinux -p wa -k dc_se
+-w /usr/sbin/fdisk -p x -k dc_fdisk
+
+
+]# ausearch -k dc_passwd     //查看审计记录 结果
+]# ausearch -k dc_fdisk
+
+success=yes     //命令执行成功
+comm="useradd"        //命令名
+exe="/usr/sbin/useradd"   //命令所在位置 路径
+key="dc_fdisk"     //审计规则
+uid=0 gid=0    //用户  谁执行的
+cwd="/root"    //在哪执行此命令的
+
+argc=2 a0="fdisk" a1="-l"       //命令参数
+命令组成   命令第一部分   第二部分
+
+----------------------------------------------------------
+
+          日志统计  审计内容做统计
+
+
+aureport 
+
+-----------------------------------------------------------
+
+
+
+      网站服务安全
+             nginx (php)  更安全 直接就是 不存在
+安装时 禁用 不需要的文件
+  默认 --with 不自动下载  / --without  默认自动下载 
+]# ./configure --without-http_autoindex_module ;
+                           //指定不要 才会不默认安装
+             tomcat
+
+
+      隐藏版本
+改源码 中文件  /root/nginx-1.12.2/src/http  
+
+]# vim ngx_http_header_filter_module.c
+static u_char ngx_http_server_string[] = "Server: nginx" CRLF;
+static u_char ngx_http_server_full_string[] = "Server: " NGINX_VER CRLF;
+static u_char ngx_http_server_build_string[] = "Server: " NGINX_VER_BUILD CRLF;
+
+修改 后
+
+static u_char ngx_http_server_string[] = "Server: Apache" CRLF;
+static u_char ngx_http_server_full_string[] = "Server: Apache" CRLF;
+static u_char ngx_http_server_build_string[] = "Server: Apache" CRLF;
+
+
+
+
+]# curl -i http://192.168.4.203/test.html   //-i  可以查看版本
+HTTP/1.1 200 OK
+Server: Apache
+Date: Fri, 01 Nov 2019 07:25:40 GMT
+Content-Type: text/html
+Content-Length: 7
+Last-Modified: Fri, 01 Nov 2019 06:33:06 GMT
+Connection: keep-alive
+ETag: "5dbbd1a2-7"
+Accept-Ranges: bytes
+
+web203
+
+
+
+ab -c -n
+
+
+----------------------------
+                             限制并发 
+      安装时 默认安装
+vim /usr/local/nginx/conf/nginx.conf
+http{
+ limit_req_zone $binary_remote_addr zone=one:10m rate=1r/s;
+                                   //变量本机ip     //定意zone 10m //处理1个/s
+    server {
+    limit_req zone=one burst=5;   //处理第一个之后再处理5个
+
+
+------------------------------
+
+获取网站信息  非法访问
+
+HEAD 头部信息    
+GET 正常访问
+PUT
+
+curl -X 选项   网址
+
+]# vim /usr/local/nginx/conf/nginx.conf
+        if ($request_method !~ ^(GET|POST)$) {
+        return 444;             //只允许 GET和POST选项
+         }
+
+
+------------------------------
+防止buffer溢出
+定义缓冲区默认值 和最大值
+
+-------------------------------
+
+
+              服务器安全
+
+       Mariadb安全
+ 
+         root本机无密码登录  所有用户无密码登录 对test完全权限
+
+]# mysql_secure_installation
+Enter current password for root (enter for none): 现root密码
+
+Set root password? [Y/n] Y  新root密码
+
+Remove anonymous users? [Y/n] Y    删除匿名用户
+
+Disallow root login remotely? [Y/n]  不允许root远程登录
+
+Remove test database and access to it? [Y/n] 删除test库
+
+
+-------------------------------
+
+密码安全     家目录下    文件自动生成  删除生成命令的历史文件
+   修改密码 在bash下使用的命令都会被记录
+ ]# cat ~/.bash_history
+
+登录状态下 输出的命令  mysql >
+
+]# cat ~/.mysql_history
+
+----------------------------------------
+
+数据备份
+
+mysqldump 
+----------------------
+
+数据安全
+生产环境 网站做数据安全
+
+---------------------
+
+java编写的网页
+tomcat 安全
+
+隐藏 版本信息
+]# yum -y install java-1.8.0-openjdk-devel
+
+解压命令 在此安装包中
+]# which jar    解压 java 压缩包
+/usr/bin/jar
+
+]# pwd
+/usr/local/tomcat/lib
+]# jar -xf catalina.jar  //存放版本文件
+
+/usr/local/tomcat/lib/org/apache/catalina/util/ServerInfo.properties
+
+
+]# vim ServerInfo.properties 
+server.info=nginx^M                 //
+server.number=10.0.30.0^M           //
+server.built=Dec 10 2019 22:30:00 UTC
+
+
+访问不存在网页时  会输出版本信息
+curl
+
+
+tomcat 修改
+
+]# vim +69 /usr/local/tomcat/conf/server.xml  配置文件
+ <Connector port="8080" protocol="HTTP/1.1"
+               connectionTimeout="20000"
+               redirectPort="8443" server="jacob" />
+                                                               增加了个server
+
+主配置文件 隐藏 -- 
+源码 隐藏  -- 显示头信息 真实信息被隐藏 
+
+
+
+Tomcat 启动用户root 不安全
+                                       给予用户tomcat 启动tomcat服务的权限
+]# useradd tomcat    创建用户时不赋予密码 除root用户外没人能登录用户
+]# chown -R tomcat:tomcat /usr/local/tomcat/
+]# su - -c "/usr/local/tomcat/bin/startup.sh" tomcat
+ps aux | grep -i java
+
+]# vim /etc/rc.local     开机启动  赋予执行权限 + 命令
+
+
+
+删除 默认测试界面
+rm -rf /usr/loacl/tomcat/webapps/*
+重新定意 网页目录  配置文件
+
+
+
+
+
+
+
+

@@ -1,0 +1,194 @@
+
+
+
+                 zabbix 发送报警邮件
+
+
+起邮箱服务  yum -y install postfix .  mailx
+                     systemctl start  postfix/mailx
+
+
+
+自定义监控项 在zabbix上不会报警 不会有报错信息
+
+配置触发器 & 报警动作  才可以自动报警
+
+触发器  
+ 表达式 ---- 触发某个动作 
+可创建新的触发器  指定如何触发 
+
+
+设置邮件
+            邮件服务器
+            邮箱账号
+
+  管理 >>> 报警媒介类型>>邮件email
+
+指定发的服务器 
+      SMTP服务器   主机名 : loaclhost (得有解析)
+      SMTP HELO                   (默认就行)
+      SMTP 电邮     root@loaclhost   (发件人)
+
+指定收件人
+   管理 >> 用户 >>  报警媒介>> 别名组 (admin) >>报警媒介>>添加
+
+          收件人 用户 : zabbix@loaclhost   
+
+创建动作 (可多个)
+
+配置>>动作 >> 创建动作>>动作
+  名字  :
+  新的触发条件  : 触发器  =   名字 手动输入  ( 添加 ) 加入上行
+                       创建动作>> 操作
+
+  默认接收人 : 可自定义  (邮件头信息)
+  默认信息 : 默认
+
+操作--新
+  操作细节
+  步骤 : 1- 0
+  持续时间 : 60 
+  操作类型 : 发消息
+  发送到用户 (添加) : 指定用户 (admin)
+  仅发送到
+  小>>添加(白色)
+添加
+
+
+-------------------------------------------------
+
+
+     自动发现
+
+ 创建自动发现规则
+ 创建动作
+
+配置 >> 自动发现 >> 创建>> 
+   名称  :  gz1  (随意) 
+  ip范围 :  192.168.2.6-255
+   更新间隔 : 1m (默认 太长)
+   检查 >>新的 选类型 端口号 >> 添加
+添加
+
+配置 >> 动作 >> 事件源[自动发现]  创建动作 
+  动作 名称 :       ( 随意 )
+  新触发条件 >> 添加  >>
+===操作 新1
+     -操作细节
+                             > 操作类型 : 添加到主机群组
+      -保存
+====新2  模板关联
+                 > http / os linux   
+
+       -保存
+
+-----------------------------------
+
+
+
+
+测试  多出新主机
+
+
+监控 多服务器时    
+                      主动模式  被监控对象 主动传输数据
+      
+                    分步式   三级 分部    
+          每50台一个代理  最后由 监控主机连接这几个代理服务器
+
+---------------------------------
+主动模式 
+
+         安装 zabbix .agent 软件
+
+修改配置文件
+注释掉 server=127.0.0.1    //   93
+startagents=0   //禁止被动监控     118  (注释 和 值)
+serveractive=192.168.2.5:10051   //指定监控服务器  134
+hostname=my201  //指定主机名    145
+refreshactivecheck=120  // 多久发送信息 183 (注释)  值默认
+
+ps -C zabbix_agentd
+
+-------------------------
+控制服务器
+ 
+ 1 克隆已有模板  BTMP2 
+ 2 修改模板监控项的模式 为主动模式
+ 3 添加监控主机 201 
+ 4 调用克隆的模板主机 201
+
+
+
+------------------------------------
+
+     聚合图形   拓扑图
+                     
+检测中  >> 拓扑图 >> 
+
+--------------------------------------
+
+
+nginx 
+
+curl nginx主机地址/status
+
+Active connections: 1  //实时连接数
+
+server accepts handled requests
+ 1 1 1 
+//1 历史累积连接  //2 处理请求连接个数   //3 处理请求个数
+
+
+
+
+vim /tmp/nginx_status.sh
+#!/bin/bash
+case "$1" in
+"Active"|"A")
+  curl -s http://192.168.2.100/status | awk 'NR==1{print $3}' ;;
+
+"accepts"|"a")
+  curl -s http://192.168.2.100/status | awk 'NR==3{print $1}' ;;
+
+
+"Waiting"|"W"|"w")
+  curl -s http://192.168.2.100/status | awk 'NR==4{print $6}' ;;
+
+esac
+~                  
+]# chmod +x /tmp/nginx_status.sh
+
+zabbix调用脚本 
+]# vim /usr/local/etc/zabbix_agentd.conf.d/count.line.passwd 
+UserParameter=nginx_status[*],/tmp/nginx_status.sh $1
+
+
+
+查看 脚本 
+]# zabbix_get -s localhost -k nginx_status[a]
+70
+]# zabbix_get -s localhost -k nginx_status[w]
+0
+]# zabbix_get -s localhost -k nginx_status[A]
+
+
+zabbix命令 检查 本机是否能启用脚本 
+
+
+zabbix网页配置 
+  
+模板  创建模板 >>  名称 组群 >>  应用集 >> 创建应用集 名称  
+ >>    监控项   >> 创建监控项  >> 名称 (监控项名...随意) 
+>> 键值  运行的脚本定义在/usr/local/etc/zabbix_agentd.conf.d/count.line.passwd  文件中 定义的 脚本名  左边, 的值
+>> 应用集  指定监控项所在的应用集  >> 添加 
+>> 配置 >> 主机 >> 主机号进入 >> 模板 添加 模板 (刚建的模板) >> 保存
+>> 在  检测中 最新数据查看 
+
+
+
+
+
+
+
+

@@ -1,0 +1,185 @@
+
+
+                                   系统命令
+
+
+]$ which  traceroute
+
+]$ traceroute www.baidu.com    //路由器经过几个 
+
+
+
+]$ iostat     //查看磁盘读写速度   实时变动
+
+]$ free  -m     //资源
+
+]$ df -h  //查看分区
+
+
+                               监控软件
+
+
+ Cacti  有图形  无自定义插件
+ Nagios 无图形 有报警 有自定插件 
+ zabbix     web页面监控
+
+
+1需要连接 被监控服务器  SNMP 协议/ Agent 服务
+
+数据可写入   MySQL . Oracle
+
+服务器使用 LNMP 实现 web前端管理
+
+被监控主机
+     安装  Agent
+     支持  SNMP
+
+监控服务器端
+]# yum -y install gcc pcre-devel zlib-devel openssl-devel
+
+]# ./configure --enable-server --enable-proxy --enable-agent --with-mysql=/usr/bin/mysql_config --with-net-snmp --with-libcurl
+
+]# make install
+
+]# mysql
+> create database zabbix character set utf8;
+> grant all on zabbix.* to zabbix@"localhost" identified by "zabbix";
+
+zabbix-3.4.4]# cd database/mysql/
+mysql]# ls
+data.sql  images.sql  schema.sql
+]# mysql -uzabbix -pzabbix zabbix < schema.sql
+]# mysql -uzabbix -pzabbix zabbix < images.sql 
+]# mysql -uzabbix -pzabbix zabbix < data.sql 
+
+
+
+]# yum -y install php-gd php-xml php-ldap
+]# yum -y install php-bcmath php-mbstring
+
+
+nginx ------------------------------------
+/usr/local/nginx/conf/nginx.conf
+
+http {
+    fastcgi_buffers 8 16k;           /缓存php生成的页面 ,8个16k
+    fastcgi_buffer_size 32k;         /缓存php生产的头部信息
+    fastcgi_connect_timeout 300;     /连接php的超时时间
+    fastcgi_send_timeout 300;        /发送请求的超时时间
+    fastcgi_read_timeout 300;        /读取请求的超时时间
+------------------------------------------------------------------
+
+/etc/php.ini
+
+date.timezone = Asia/Shanghai    //时区
+max_execution_time = 300      //最大执行时间 /秒
+post_max_size = 32M           //post数据最大容量
+max_input_time = 300           //服务器接受数据的时间限制
+
+
+
+]# cp -a php/* /usr/local/nginx/html/
+]# chmod -R 777 /usr/local/nginx/html/*
+]# vim /usr/local/nginx/conf/nginx.conf
+]# vim /usr/local/etc/zabbix_server.conf
+]# useradd -s /sbin/nologin zabbix
+
+
+
+  zabbix 配置文件存放位置
+Configuration file "/usr/local/nginx/html/conf/zabbix.conf.php" created.
+
+------------------------------------------------
+
+                           可根据网站 报错信息进行修改
+
+]# vim /usr/local/etc/zabbix_server.conf
+
+DBHost=localhost   //数据库主机，默认该行被注释
+DBName=zabbix      //设置数据库名称
+DBUser=zabbix      //设置数据库账户
+DBPassword=zabbix  //设置数据库密码，默认该行被注释
+LogFile=/tmp/zabbix_server.log    
+                                  //设置日志，仅查看以下即可
+
+]# useradd -s /sbin/nologin zabbix   //不创建用户无法启动服务
+
+]# zabbix_server  //启动服务
+]# ss -ntulp |grep zabbix_server  //确认连接状态，端口10051
+#先使用killall zabbix_server关闭服务
+]# killall -9 zabbix_server
+---------------------------------------------------------------------------
+
+]# vim /usr/local/etc/zabbix_agentd.conf
+Server=127.0.0.1,192.168.2.5            //允许哪些主机监控本机
+ServerActive=127.0.0.1,192.168.2.5     
+                                                     //允许哪些主机通过主动模式监控本机
+Hostname=zabbix_server                   //设置本机主机名
+LogFile=/tmp/zabbix_server.log           //设置日志文件
+UnsafeUserParameters=1                   //是否允许自定义key
+
+]# zabbix_agentd            //启动监控agent
+]# ss -ntulp |grep zabbix_agentd   //查看端口信息为10050
+
+
+
+zabbix 网页使用  
+
+用户可改 密码 /语言
+
+
+被监控 机器 运行zabbix 
+
+    10051  >>>> 10050 2.100
+    监控主机         被监控主机端口
+
+
+
+tar -xf zabbix-3.4.4.tar.gz
+cd zabbix/
+./configure --enable-agent
+make install
+
+]# vim /usr/local/etc/zabbix_agentd.conf
+Server=127.0.0.1,192.168.2.5       //允许访问
+ServerActive=192.168.2.5:10051     //指定监控服务的ip 端口
+LogFile=/tmp/zabbix_agentd.log     //日志文件
+
+]# useradd zabbix
+]# zabbix_agentd
+
+------------------------------------------------------------
+
+网页上 添加监控主机
+选择监控模板
+
+
+
+配置 主机  定义模板
+最新数据
+
+自定义监控
+      启用自定义命令设置
+      指定定义命令文件命令
+      重启zabbix服务
+      验证自定义命令
+
+
+UnsafeUserParameters=1
+ Include=/usr/local/etc/zabbix_agentd.conf.d/
+有原始值
+# Include=/usr/local/etc/zabbix_agentd.userparams.conf
+# Include=/usr/local/etc/zabbix_agentd.conf.d/
+# Include=/usr/local/etc/zabbix_agentd.conf.d/*.conf
+
+
+
+]# cd /usr/local/etc/zabbix_agentd.conf.d/
+]# vim count.line.passwd   //文件名随意
+UserParameter=count.line.passwd,wc -l /etc/passwd | awk ' {print $1} '
+
+ 命令意思              //指定名(随意) , 要执行的命令
+
+
+
+
